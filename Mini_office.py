@@ -1,6 +1,7 @@
 import os
+import speech_recognition as sr
 
-from PySide6.QtGui import QAction, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QFont, QTextCursor
 from PySide6.QtWidgets import QApplication, QMainWindow, QToolBar, QTextEdit, QInputDialog, QFileDialog
 from PySide6.QtCore import Qt, QSize
 
@@ -113,6 +114,10 @@ class VentanaPrincipal(QMainWindow):
         accionHeRee.triggered.connect(self.HerReemplazar)
         barra_herramientas.addAction(accionHeRee)
         
+        accionHeDictar = QAction("Dictar", self)
+        accionHeDictar.triggered.connect(self.dictar_por_voz)
+        barra_herramientas.addAction(accionHeDictar)
+        
         self.addToolBar(barra_herramientas)
 
     # Funciones menu Editar
@@ -210,6 +215,83 @@ class VentanaPrincipal(QMainWindow):
         estado = f"{self.mensaje_estado} | Palabras: {palabras}" if self.mensaje_estado else f"Palabras: {palabras}"
         self.status.showMessage(estado, 5000)
         self.mensaje_estado = ""
+        
+    def reconocer_voz(self):
+        recognizer = sr.Recognizer()
+        try:
+            with sr.Microphone() as source:
+                self.status.showMessage("Escuchando... (Di 'terminar' para salir)")
+                recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
+            
+            texto = recognizer.recognize_google(audio, language="es-ES")
+            return texto.lower().strip()
+            
+        except sr.WaitTimeoutError:
+            return None 
+        except sr.UnknownValueError:
+            return None 
+        except sr.RequestError:
+            self.mensaje_estado = "Error de conexión"
+            return "terminar"
+        except Exception as e:
+            print(f"Error: {e}")
+            return None
+
+    def dictar_por_voz(self):
+        self.texto.moveCursor(QTextCursor.End)
+        self.texto.setFocus()
+        
+        self.texto.setFontWeight(QFont.Normal)
+        self.texto.setFontItalic(False)
+        self.texto.setFontUnderline(False)
+        
+        self.mensaje_estado = "Modo dictado activo. Di 'terminar' para salir."
+        self.actualizar_contador()
+
+        while True:
+            QApplication.processEvents()
+            
+            texto = self.reconocer_voz()
+            
+            if texto is None:
+                continue
+                
+            if "terminar" in texto or "detener dictado" in texto:
+                self.status.showMessage("Dictado finalizado.")
+                break 
+            
+            elif "negrita" in texto:
+                peso_actual = self.texto.fontWeight()
+                nuevo_peso = QFont.Bold if peso_actual != QFont.Bold else QFont.Normal
+                self.texto.setFontWeight(nuevo_peso)
+                self.status.showMessage("Formato cambiado: Negrita")
+                
+            elif "cursiva" in texto:
+                estado_actual = self.texto.fontItalic()
+                self.texto.setFontItalic(not estado_actual)
+                self.status.showMessage("Formato cambiado: Cursiva")
+                
+            elif "subrayado" in texto:
+                estado_actual = self.texto.fontUnderline()
+                self.texto.setFontUnderline(not estado_actual)
+                self.status.showMessage("Formato cambiado: Subrayado")
+            
+            elif "nuevo documento" in texto:
+                self.HerNuevo()
+                self.status.showMessage("Nuevo documento creado")
+                
+            elif "guardar archivo" in texto:
+                self.HerGuardar()
+                self.status.showMessage("Archivo guardado. Saliendo del dictado.")
+                break
+
+            else:
+                self.texto.insertPlainText(texto + " ")
+                
+                sb = self.texto.verticalScrollBar()
+                sb.setValue(sb.maximum())
+
         
 
 if __name__ == "__main__":
