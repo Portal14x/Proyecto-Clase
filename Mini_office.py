@@ -4,7 +4,7 @@ import speech_recognition as sr
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QFont, QTextCursor
 from PySide6.QtWidgets import QApplication, QMainWindow, QToolBar, QTextEdit, QInputDialog, QFileDialog
 from PySide6.QtCore import Qt, QSize
-
+from contadorWidget import WordCounterWidget
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self):
@@ -24,6 +24,9 @@ class VentanaPrincipal(QMainWindow):
         # Crear barra de estado
         self.status = self.statusBar()
         self.mensaje_estado = "" 
+        
+        self.widget_contador = WordCounterWidget(parent=self)
+        self.status.addPermanentWidget(self.widget_contador)
         
         # Menu Archivo
         accionNu = QAction("Nuevo", self)
@@ -210,11 +213,12 @@ class VentanaPrincipal(QMainWindow):
         self.actualizar_contador()
 
     def actualizar_contador(self):
-        texto = self.texto.toPlainText()
-        palabras = len(texto.split())
-        estado = f"{self.mensaje_estado} | Palabras: {palabras}" if self.mensaje_estado else f"Palabras: {palabras}"
-        self.status.showMessage(estado, 5000)
-        self.mensaje_estado = ""
+        texto_actual = self.texto.toPlainText()
+        self.widget_contador.update_from_text(texto_actual)
+        
+        if self.mensaje_estado:
+            self.status.showMessage(self.mensaje_estado, 5000)
+            self.mensaje_estado = ""
         
     def reconocer_voz(self):
         recognizer = sr.Recognizer()
@@ -246,7 +250,7 @@ class VentanaPrincipal(QMainWindow):
         self.texto.setFontItalic(False)
         self.texto.setFontUnderline(False)
         
-        self.mensaje_estado = "Modo dictado activo. Di 'terminar' para salir."
+        self.mensaje_estado = "Modo dictado activo. Esperando 5s de silencio para terminar."
         self.actualizar_contador()
 
         while True:
@@ -254,14 +258,16 @@ class VentanaPrincipal(QMainWindow):
             
             texto = self.reconocer_voz()
             
+            # Si recibimos la señal de timeout, terminamos el dictado
+            if texto == "__TIMEOUT__":
+                self.status.showMessage("Dictado finalizado por inactividad (5s).")
+                break
+                
             if texto is None:
                 continue
                 
-            if "terminar" in texto or "detener dictado" in texto:
-                self.status.showMessage("Dictado finalizado.")
-                break 
-            
-            elif "negrita" in texto:
+            # Comandos de formato
+            if "negrita" in texto:
                 peso_actual = self.texto.fontWeight()
                 nuevo_peso = QFont.Bold if peso_actual != QFont.Bold else QFont.Normal
                 self.texto.setFontWeight(nuevo_peso)
@@ -283,14 +289,17 @@ class VentanaPrincipal(QMainWindow):
                 
             elif "guardar archivo" in texto:
                 self.HerGuardar()
-                self.status.showMessage("Archivo guardado. Saliendo del dictado.")
-                break
+                self.status.showMessage("Archivo guardado.")
+                # Opcional: break si quieres que al guardar también salga
 
             else:
                 self.texto.insertPlainText(texto + " ")
                 
                 sb = self.texto.verticalScrollBar()
                 sb.setValue(sb.maximum())
+                
+                # Actualizar el contador widget en tiempo real
+                self.actualizar_contador()
 
         
 
