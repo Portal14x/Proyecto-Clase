@@ -224,7 +224,7 @@ class VentanaPrincipal(QMainWindow):
         recognizer = sr.Recognizer()
         try:
             with sr.Microphone() as source:
-                self.status.showMessage("Escuchando... (Di 'terminar' para salir)")
+                self.status.showMessage("Escuchando... (5s de silencio para terminar)")
                 recognizer.adjust_for_ambient_noise(source, duration=0.5)
                 audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
             
@@ -232,12 +232,12 @@ class VentanaPrincipal(QMainWindow):
             return texto.lower().strip()
             
         except sr.WaitTimeoutError:
-            return None 
+            return "__TIMEOUT__"
         except sr.UnknownValueError:
             return None 
         except sr.RequestError:
             self.mensaje_estado = "Error de conexión"
-            return "terminar"
+            return "__TIMEOUT__"
         except Exception as e:
             print(f"Error: {e}")
             return None
@@ -290,8 +290,7 @@ class VentanaPrincipal(QMainWindow):
             elif "guardar archivo" in texto:
                 self.HerGuardar()
                 self.status.showMessage("Archivo guardado.")
-                # Opcional: break si quieres que al guardar también salga
-
+                
             else:
                 self.texto.insertPlainText(texto + " ")
                 
